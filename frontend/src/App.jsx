@@ -2,8 +2,17 @@ import { useState } from "react";
 
 const API_BASE = "http://localhost:5000/api";
 
+// Default constraints
+const defaultConstraints = {
+  maxTasks: 20,
+  teamSize: 2,
+  hoursPerDay: 6,
+  deadlineDays: 14,
+};
+
 function App() {
   const [description, setDescription] = useState("");
+  const [constraints, setConstraints] = useState(defaultConstraints);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -26,38 +35,39 @@ function App() {
     setLoading(false);
   };
 
+  // Handle input changes for constraints
+  const handleConstraintChange = (field, value) => {
+    setConstraints((prev) => ({
+      ...prev,
+      [field]: Number(value) || defaultConstraints[field], // fallback to default if empty
+    }));
+  };
+
   const handleDecompose = () => {
     callApi("decompose", {
-      description,
-      constraints: {
-        maxTasks: 20,
-        teamSize: 2,
-        hoursPerDay: 6,
-        deadlineDays: 14,
-      },
+      description: description || "",
+      constraints: constraints || defaultConstraints,
     });
   };
 
   const handleClarify = () => {
-    callApi("clarify", { description });
+    callApi("clarify", { description: description || "" });
   };
 
   const handleValidate = () => {
     callApi("validate", {
       tasks: data?.tasks || [],
-      constraints: {
-        teamSize: 2,
-        hoursPerDay: 6,
-        deadlineDays: 14,
-      },
+      constraints: constraints || defaultConstraints,
     });
   };
 
-  const criticalPath = getCriticalPath(data?.tasks || []);
+  const tasks = data?.tasks || [];
+  const criticalPath = getCriticalPath(tasks);
 
   return (
     <div style={{ padding: 20, fontFamily: "Arial" }}>
       <h2>Task Decomposition Engine</h2>
+      {/* Project Description */}
       <textarea
         rows={5}
         style={{ width: "100%" }}
@@ -67,13 +77,29 @@ function App() {
       />
       <br />
       <br />
+      {/* Constraints Inputs */}
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        {Object.keys(defaultConstraints).map((key) => (
+          <div key={key}>
+            <label>{key}</label>
+            <input
+              type="number"
+              value={constraints[key]}
+              onChange={(e) => handleConstraintChange(key, e.target.value)}
+              style={{ width: 80, marginLeft: 5 }}
+            />
+          </div>
+        ))}
+      </div>
+      <br />
+      {/* Buttons */}
       <button onClick={handleDecompose}>Decompose</button>{" "}
       <button onClick={handleClarify}>Clarify</button>{" "}
-      <button onClick={handleValidate} disabled={!data?.tasks}>
+      <button onClick={handleValidate} disabled={tasks.length === 0}>
         Validate
       </button>
       {loading && <p>Processing...</p>}
-      {/* 🔴 Conflicts */}
+      {/* Conflicts */}
       {data?.conflicts?.length > 0 && (
         <div style={{ marginTop: 20 }}>
           <h3 style={{ color: "red" }}>⚠ Conflicts</h3>
@@ -93,12 +119,12 @@ function App() {
           ))}
         </div>
       )}
-      {/* 🧩 Tasks */}
-      {data?.tasks?.length > 0 && (
+      {/* Tasks */}
+      {tasks.length > 0 && (
         <div style={{ marginTop: 20 }}>
           <h3>📋 Tasks</h3>
           <div style={{ display: "grid", gap: 10 }}>
-            {data.tasks.map((task, i) => (
+            {tasks.map((task, i) => (
               <div
                 key={i}
                 style={{
@@ -109,11 +135,11 @@ function App() {
               >
                 <h4>{task.title}</h4>
                 <p>{task.description}</p>
-                <p>⏱ {task.estimatedHours} hrs</p>
-                <p>📌 Priority: {task.priority}</p>
+                <p>⏱ {task.estimatedHours || 0} hrs</p>
+                <p>📌 Priority: {task.priority || "N/A"}</p>
                 <p>
                   🔗 Dependencies:{" "}
-                  {task.dependencies.length > 0
+                  {(task.dependencies || []).length > 0
                     ? task.dependencies.join(", ")
                     : "None"}
                 </p>
@@ -122,7 +148,7 @@ function App() {
           </div>
         </div>
       )}
-      {/* 🛣 Critical Path */}
+      {/* Critical Path */}
       {criticalPath.length > 0 && (
         <div style={{ marginTop: 20 }}>
           <h3>🛣 Critical Path</h3>
@@ -131,8 +157,8 @@ function App() {
           </p>
         </div>
       )}
-      {/* ❓ Clarify */}
-      {data?.questions && (
+      {/* Clarifying Questions */}
+      {data?.questions?.length > 0 && (
         <div style={{ marginTop: 20 }}>
           <h3>❓ Clarifying Questions</h3>
           <ul>
@@ -142,7 +168,7 @@ function App() {
           </ul>
         </div>
       )}
-      {/* 📊 Feasibility */}
+      {/* Feasibility */}
       {data?.feasibilityScore !== undefined && (
         <p style={{ marginTop: 20 }}>
           <strong>Feasibility Score:</strong> {data.feasibilityScore}
@@ -160,7 +186,7 @@ function getCriticalPath(tasks) {
 
   const map = {};
   tasks.forEach((t) => {
-    map[t.title] = t.dependencies;
+    map[t.title] = t.dependencies || [];
   });
 
   let longestPath = [];

@@ -2,7 +2,21 @@ import { detectCycle } from "../utils/dependencyGraph.js";
 import { calculateFeasibility } from "../utils/feasibility.js";
 
 export const validateTasks = (req, res) => {
-  const { tasks, constraints } = req.body;
+  const { tasks, constraints } = req.body || {};
+
+  // Check if tasks or constraints are missing
+  if (!tasks || !Array.isArray(tasks) || !constraints) {
+    return res.status(400).json({
+      valid: false,
+      issues: [
+        {
+          type: "input",
+          description: "Tasks or constraints are missing or invalid",
+        },
+      ],
+      feasibilityScore: 0,
+    });
+  }
 
   const cycleResult = detectCycle(tasks);
   const feasibilityScore = calculateFeasibility(tasks, constraints);
